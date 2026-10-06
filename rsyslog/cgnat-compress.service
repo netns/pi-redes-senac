@@ -1,0 +1,5 @@
+[Unit]
+Description="CGNAT logs compression script"
+
+[Service]
+ExecStart=/usr/local/bin/zip_cgnat.sh

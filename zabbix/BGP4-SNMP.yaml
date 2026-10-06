@@ -1,0 +1,509 @@
+zabbix_export:
+  version: '7.0'
+  template_groups:
+    - uuid: 43e8d7897056466d965a0d8b5c916723
+      name: 'Templates/Network Devices'
+    - uuid: 0f6d0ad2dc904295808603733d0ef773
+      name: Templates/Protocols
+  templates:
+    - uuid: 702f6f9dd4c549d3829556a77576b2b9
+      template: 'BGP4 by SNMP'
+      name: 'BGP4 by SNMP'
+      description: |
+        Developed by Daniel Lima <contato.dlima@protonmail.com>
+        
+        MIBs used:
+        
+        BGP4-MIB
+      groups:
+        - name: 'Templates/Network Devices'
+        - name: Templates/Protocols
+      items:
+        - uuid: bd469384d6ce48fb963359d2734a430e
+          name: 'BGP Local AS'
+          type: SNMP_AGENT
+          snmp_oid: 'get[1.3.6.1.2.1.15.2.0]'
+          key: bgp.asn
+          delay: 3m
+          history: 7d
+          trends: '0'
+          preprocessing:
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 12h
+          tags:
+            - tag: component
+              value: network
+            - tag: protocol
+              value: bgp
+        - uuid: c528212858d445cf88bc6231c6b92c68
+          name: 'BGP Peer Walk'
+          type: SNMP_AGENT
+          snmp_oid: 'walk[1.3.6.1.2.1.15.3.1]'
+          key: bgp.peer.walk
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          tags:
+            - tag: component
+              value: network
+            - tag: protocol
+              value: bgp
+        - uuid: 8139fcdf445c48db890eb9bacb88a731
+          name: 'BGP Router ID'
+          type: SNMP_AGENT
+          snmp_oid: 'get[1.3.6.1.2.1.15.4.0]'
+          key: bgp.rid
+          delay: 3m
+          history: 7d
+          value_type: TEXT
+          trends: '0'
+          preprocessing:
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 12h
+          tags:
+            - tag: component
+              value: network
+            - tag: protocol
+              value: bgp
+      discovery_rules:
+        - uuid: 24bc0440ed394217bd14106f7eab4d33
+          name: 'BGP Peer Discovery'
+          type: DEPENDENT
+          key: bgp.peer.discovery
+          delay: '0'
+          item_prototypes:
+            - uuid: b54819dd433943ca9c7b497c093006b8
+              name: 'Peer AS {#REMOTEASN} ({#REMOTEADDRESS}): Admin Status'
+              type: DEPENDENT
+              key: 'bgp.peer.adminstatus[{#SNMPINDEX}]'
+              delay: '0'
+              history: 7d
+              trends: '0'
+              valuemap:
+                name: 'BGP Peer Admin Status'
+              preprocessing:
+                - type: SNMP_WALK_VALUE
+                  parameters:
+                    - '1.3.6.1.2.1.15.3.1.3.{#SNMPINDEX}'
+                    - '0'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              master_item:
+                key: bgp.peer.walk
+              tags:
+                - tag: component
+                  value: network
+                - tag: peer
+                  value: '{#REMOTEASN}'
+                - tag: protocol
+                  value: bgp
+              trigger_prototypes:
+                - uuid: d583d83d8a004b38b851bf3182a20846
+                  expression: 'last(/BGP4 by SNMP/bgp.peer.adminstatus[{#SNMPINDEX}])=1'
+                  recovery_mode: RECOVERY_EXPRESSION
+                  recovery_expression: 'last(/BGP4 by SNMP/bgp.peer.adminstatus[{#SNMPINDEX}])=2'
+                  name: 'BGP Peer AS {#REMOTEASN} ({#REMOTEADDRESS}): Administratively down'
+                  opdata: 'Admin status: {ITEM.LASTVALUE}'
+                  url_name: 'BGP Peer'
+                  priority: INFO
+                  description: |
+                    The BGP peer AS {#REMOTEASN} ({#REMOTEADDRESS}) is administratively disabled.
+                    
+                    This condition may be intentional. Verify the peer configuration and maintenance status before taking corrective action.
+                  manual_close: 'YES'
+                  tags:
+                    - tag: component
+                      value: bgp_peer
+                    - tag: peer_as
+                      value: '{#REMOTEAS}'
+                    - tag: protocol
+                      value: bgp
+            - uuid: dfbd39f2d7c3475eb9034d2fe3465e14
+              name: 'Peer AS {#REMOTEASN} ({#REMOTEADDRESS}): Session Established Time'
+              type: DEPENDENT
+              key: 'bgp.peer.established.time[{#SNMPINDEX}]'
+              delay: '0'
+              history: 7d
+              trends: 90d
+              units: s
+              description: 'This timer indicates how long (in seconds) this peer has been in the established state or how long since this peer was last in the established state. It is set to zero when a new peer is configured or when the router is booted.'
+              preprocessing:
+                - type: SNMP_WALK_VALUE
+                  parameters:
+                    - '1.3.6.1.2.1.15.3.1.16.{#SNMPINDEX}'
+                    - '0'
+              master_item:
+                key: bgp.peer.walk
+              tags:
+                - tag: component
+                  value: network
+                - tag: peer
+                  value: '{#REMOTEASN}'
+                - tag: protocol
+                  value: bgp
+            - uuid: 21517febc10940dc8f7bc985f28ad4a0
+              name: 'Peer AS {#REMOTEASN} ({#REMOTEADDRESS}): Established Transitions'
+              type: DEPENDENT
+              key: 'bgp.peer.established.transitions[{#SNMPINDEX}]'
+              delay: '0'
+              history: 7d
+              trends: 90d
+              description: 'The total number of times the BGP FSM transitioned into the established state for this peer.'
+              preprocessing:
+                - type: SNMP_WALK_VALUE
+                  parameters:
+                    - '1.3.6.1.2.1.15.3.1.15.{#SNMPINDEX}'
+                    - '0'
+              master_item:
+                key: bgp.peer.walk
+              tags:
+                - tag: component
+                  value: network
+                - tag: peer
+                  value: '{#REMOTEASN}'
+                - tag: protocol
+                  value: bgp
+              trigger_prototypes:
+                - uuid: 636376808bbc4966bbdafb032ed7657f
+                  expression: 'change(/BGP4 by SNMP/bgp.peer.established.transitions[{#SNMPINDEX}])>0'
+                  recovery_mode: NONE
+                  name: 'BGP Peer AS {#REMOTEASN} ({#REMOTEADDRESS}): Established state transition detected'
+                  opdata: 'Established transitions: {ITEM.LASTVALUE}'
+                  url_name: 'BGP Peer'
+                  status: DISABLED
+                  discover: NO_DISCOVER
+                  priority: INFO
+                  description: |
+                    A new BGP Established state transition was detected for peer AS {#REMOTEASN} ({#REMOTEADDRESS}).
+                    
+                    Use the peer state, established time and message/update counters to investigate possible session instability.
+                  type: MULTIPLE
+                  manual_close: 'YES'
+                  tags:
+                    - tag: component
+                      value: bgp_peer
+                    - tag: event_type
+                      value: bgp_transition
+                    - tag: peer_as
+                      value: '{#REMOTEAS}'
+                    - tag: protocol
+                      value: bgp
+                - uuid: 0819767b37bc4040b95ccded6961edc3
+                  expression: 'changecount(/BGP4 by SNMP/bgp.peer.established.transitions[{#SNMPINDEX}],15m,"inc")>={$BGP.FLAP.THRESHOLD}'
+                  name: 'BGP Peer AS {#REMOTEASN} ({#REMOTEADDRESS}): Session flapping detected'
+                  opdata: 'Established transitions: {ITEM.LASTVALUE}'
+                  url_name: 'BGP Peer'
+                  priority: HIGH
+                  description: |
+                    The BGP peer AS {#REMOTEASN} ({#REMOTEADDRESS}) is showing repeated Established state transitions.
+                    
+                    Investigate the underlying transport connectivity, BGP timers, authentication, routing, interface errors and remote peer status.
+                  manual_close: 'YES'
+                  tags:
+                    - tag: component
+                      value: bgp_peer
+                    - tag: event_type
+                      value: bgp_flapping
+                    - tag: peer_as
+                      value: '{#REMOTEAS}'
+                    - tag: protocol
+                      value: bgp
+            - uuid: 339f52c93d5d4a07a67132a8146a8768
+              name: 'Peer AS {#REMOTEASN} ({#REMOTEADDRESS}): Hold Time'
+              type: DEPENDENT
+              key: 'bgp.peer.holdtime[{#SNMPINDEX}]'
+              delay: '0'
+              history: 7d
+              trends: '0'
+              units: s
+              description: |
+                Time interval (in seconds) for the Hold Timer established with the peer.  The
+                value of this object is calculated by this BGP speaker, using the smaller of the values in bgpPeerHoldTimeConfigured and the Hold Time received in the OPEN message.
+                              
+                This value must be at least three seconds if it is not zero (0).
+                              
+                If the Hold Timer has not been established with the peer this object MUST have a value of zero (0).
+                              
+                If the bgpPeerHoldTimeConfigured object has a value of (0), then this object MUST have a value of (0).
+              preprocessing:
+                - type: SNMP_WALK_VALUE
+                  parameters:
+                    - '1.3.6.1.2.1.15.3.1.18.{#SNMPINDEX}'
+                    - '0'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              master_item:
+                key: bgp.peer.walk
+              tags:
+                - tag: component
+                  value: network
+                - tag: peer
+                  value: '{#REMOTEASN}'
+                - tag: protocol
+                  value: bgp
+            - uuid: a479731e180a46ce952ca2ca3a386397
+              name: 'Peer AS {#REMOTEASN} ({#REMOTEADDRESS}): Identifier'
+              type: DEPENDENT
+              key: 'bgp.peer.id[{#SNMPINDEX}]'
+              delay: '0'
+              history: 7d
+              value_type: TEXT
+              trends: '0'
+              preprocessing:
+                - type: SNMP_WALK_VALUE
+                  parameters:
+                    - '1.3.6.1.2.1.15.3.1.1.{#SNMPINDEX}'
+                    - '0'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              master_item:
+                key: bgp.peer.walk
+              tags:
+                - tag: component
+                  value: network
+                - tag: peer
+                  value: '{#REMOTEASN}'
+                - tag: protocol
+                  value: bgp
+            - uuid: b153b9d8ba3245998cac45e03788222d
+              name: 'Peer AS {#REMOTEASN} ({#REMOTEADDRESS}): In Total Messages'
+              type: DEPENDENT
+              key: 'bgp.peer.in.messages[{#SNMPINDEX}]'
+              delay: '0'
+              history: 7d
+              trends: 90d
+              description: 'The total number of messages received from the remote peer on this connection.'
+              preprocessing:
+                - type: SNMP_WALK_VALUE
+                  parameters:
+                    - '1.3.6.1.2.1.15.3.1.12.{#SNMPINDEX}'
+                    - '0'
+              master_item:
+                key: bgp.peer.walk
+              tags:
+                - tag: component
+                  value: network
+                - tag: peer
+                  value: '{#REMOTEASN}'
+                - tag: protocol
+                  value: bgp
+            - uuid: 66b3bd631f844d2ab0f713ceb2b05f74
+              name: 'Peer AS {#REMOTEASN} ({#REMOTEADDRESS}): In Updates'
+              type: DEPENDENT
+              key: 'bgp.peer.in.updates[{#SNMPINDEX}]'
+              delay: '0'
+              history: 7d
+              trends: 90d
+              preprocessing:
+                - type: SNMP_WALK_VALUE
+                  parameters:
+                    - '1.3.6.1.2.1.15.3.1.10.{#SNMPINDEX}'
+                    - '0'
+              master_item:
+                key: bgp.peer.walk
+              tags:
+                - tag: component
+                  value: network
+                - tag: peer
+                  value: '{#REMOTEASN}'
+                - tag: protocol
+                  value: bgp
+            - uuid: e13878d28b0b4c0094a0df88c5bb2384
+              name: 'Peer AS {#REMOTEASN} ({#REMOTEADDRESS}): KeepAlive'
+              type: DEPENDENT
+              key: 'bgp.peer.keepalive[{#SNMPINDEX}]'
+              delay: '0'
+              history: 7d
+              trends: '0'
+              units: s
+              description: |
+                Time interval (in seconds) for the KeepAlive timer established with the peer. The value of this object is calculated by this BGP speaker such that, when compared with bgpPeerHoldTime, it has the same proportion that bgpPeerKeepAliveConfigured has, compared with bgpPeerHoldTimeConfigured.
+                              
+                If the KeepAlive timer has not been established with the peer, this object MUST have a value of zero (0).
+                              
+                If the of bgpPeerKeepAliveConfigured object has a value of (0), then this object MUST have a value of (0).
+              preprocessing:
+                - type: SNMP_WALK_VALUE
+                  parameters:
+                    - '1.3.6.1.2.1.15.3.1.19.{#SNMPINDEX}'
+                    - '0'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              master_item:
+                key: bgp.peer.walk
+              tags:
+                - tag: component
+                  value: network
+                - tag: peer
+                  value: '{#REMOTEASN}'
+                - tag: protocol
+                  value: bgp
+            - uuid: 5e3dae29378847ed96d05cb22d32f4e3
+              name: 'Peer AS {#REMOTEASN} ({#REMOTEADDRESS}): Out Total Messages'
+              type: DEPENDENT
+              key: 'bgp.peer.out.messages[{#SNMPINDEX}]'
+              delay: '0'
+              history: 7d
+              trends: 90d
+              description: 'The total number of messages transmitted to the remote peer on this connection.'
+              preprocessing:
+                - type: SNMP_WALK_VALUE
+                  parameters:
+                    - '1.3.6.1.2.1.15.3.1.13.{#SNMPINDEX}'
+                    - '0'
+              master_item:
+                key: bgp.peer.walk
+              tags:
+                - tag: component
+                  value: network
+                - tag: peer
+                  value: '{#REMOTEASN}'
+                - tag: protocol
+                  value: bgp
+            - uuid: 2c1ec1721fee4ae3a441ab8564212c50
+              name: 'Peer AS {#REMOTEASN} ({#REMOTEADDRESS}): Out Updates'
+              type: DEPENDENT
+              key: 'bgp.peer.out.updates[{#SNMPINDEX}]'
+              delay: '0'
+              history: 7d
+              trends: 90d
+              preprocessing:
+                - type: SNMP_WALK_VALUE
+                  parameters:
+                    - '1.3.6.1.2.1.15.3.1.11.{#SNMPINDEX}'
+                    - '0'
+              master_item:
+                key: bgp.peer.walk
+              tags:
+                - tag: component
+                  value: network
+                - tag: peer
+                  value: '{#REMOTEASN}'
+                - tag: protocol
+                  value: bgp
+            - uuid: 29e7c0b395f541b7b277fd4aba396488
+              name: 'Peer AS {#REMOTEASN} ({#REMOTEADDRESS}): State'
+              type: DEPENDENT
+              key: 'bgp.peer.state[{#SNMPINDEX}]'
+              delay: '0'
+              history: 7d
+              trends: '0'
+              valuemap:
+                name: 'BGP Peer States'
+              preprocessing:
+                - type: SNMP_WALK_VALUE
+                  parameters:
+                    - '1.3.6.1.2.1.15.3.1.2.{#SNMPINDEX}'
+                    - '0'
+              master_item:
+                key: bgp.peer.walk
+              tags:
+                - tag: component
+                  value: network
+                - tag: peer
+                  value: '{#REMOTEASN}'
+                - tag: protocol
+                  value: bgp
+            - uuid: 715f92b092034b7eafb908d23bc13a90
+              name: 'Peer AS {#REMOTEASN} ({#REMOTEADDRESS}): In Update Elapsed Time'
+              type: DEPENDENT
+              key: 'bgp.peer.update.elapsed.time[{#SNMPINDEX}]'
+              delay: '0'
+              history: 7d
+              trends: 90d
+              units: s
+              description: 'Elapsed time (in seconds) since the last BGP UPDATE message was received from the peer. Each time bgpPeerInUpdates is incremented, the value of this object is set to zero (0).'
+              preprocessing:
+                - type: SNMP_WALK_VALUE
+                  parameters:
+                    - '1.3.6.1.2.1.15.3.1.24.{#SNMPINDEX}'
+                    - '0'
+              master_item:
+                key: bgp.peer.walk
+              tags:
+                - tag: component
+                  value: network
+                - tag: peer
+                  value: '{#REMOTEASN}'
+                - tag: protocol
+                  value: bgp
+          trigger_prototypes:
+            - uuid: 89653631eb994c4e92be1e3327c60836
+              expression: |
+                last(/BGP4 by SNMP/bgp.peer.state[{#SNMPINDEX}])<>6
+                and
+                last(/BGP4 by SNMP/bgp.peer.adminstatus[{#SNMPINDEX}])=2
+              recovery_mode: RECOVERY_EXPRESSION
+              recovery_expression: |
+                last(/BGP4 by SNMP/bgp.peer.state[{#SNMPINDEX}])=6
+                and
+                last(/BGP4 by SNMP/bgp.peer.adminstatus[{#SNMPINDEX}])=2
+              name: 'BGP peer AS {#REMOTEASN} ({#REMOTEADDRESS}) is not established'
+              opdata: 'State {ITEM.LASTVALUE}'
+              url_name: 'BGP Peer'
+              priority: HIGH
+              description: |
+                The BGP session with peer AS {#REMOTEASN} ({#REMOTEADDRESS}) is not in Established state.
+                
+                The peer is administratively enabled, but the BGP session is currently not established.
+                
+                Check the BGP state, TCP connectivity, routing to the peer, authentication parameters, timers and remote peer status.
+              dependencies:
+                - name: 'BGP Peer AS {#REMOTEASN} ({#REMOTEADDRESS}): Administratively down'
+                  expression: 'last(/BGP4 by SNMP/bgp.peer.adminstatus[{#SNMPINDEX}])=1'
+                  recovery_expression: 'last(/BGP4 by SNMP/bgp.peer.adminstatus[{#SNMPINDEX}])=2'
+              tags:
+                - tag: component
+                  value: bgp_peer
+                - tag: peer_as
+                  value: '{#REMOTEAS}'
+                - tag: protocol
+                  value: bgp
+          master_item:
+            key: bgp.peer.walk
+          preprocessing:
+            - type: SNMP_WALK_TO_JSON
+              parameters:
+                - '{#REMOTEADDRESS}'
+                - 1.3.6.1.2.1.15.3.1.7
+                - '0'
+                - '{#REMOTEASN}'
+                - 1.3.6.1.2.1.15.3.1.9
+                - '0'
+      tags:
+        - tag: component
+          value: network
+        - tag: protocol
+          value: bgp
+      macros:
+        - macro: '{$BGP.FLAP.THRESHOLD}'
+          value: '5'
+      valuemaps:
+        - uuid: 57197b5369df4926a88204033e569b21
+          name: 'BGP Peer Admin Status'
+          mappings:
+            - value: '1'
+              newvalue: stop
+            - value: '2'
+              newvalue: start
+        - uuid: 37ab9695b57a4006a82fc6bb51da9293
+          name: 'BGP Peer States'
+          mappings:
+            - value: '1'
+              newvalue: idle
+            - value: '2'
+              newvalue: connect
+            - value: '3'
+              newvalue: active
+            - value: '4'
+              newvalue: opensent
+            - value: '5'
+              newvalue: openconfirm
+            - value: '6'
+              newvalue: established

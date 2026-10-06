@@ -1,0 +1,259 @@
+interfaces {
+    ethernet eth0 {
+        address 192.168.0.35/24
+        hw-id 08:00:27:27:51:ae
+        offload {
+            gro
+            gso
+            sg
+            tso
+        }
+        vif 4020 {
+            address 10.0.3.1/29
+            address 2001:db8:cfa0::3/64
+            description GR-DC01
+        }
+    }
+    ethernet eth1 {
+        hw-id 08:00:27:2c:aa:48
+        offload {
+            gro
+            gso
+            sg
+            tso
+        }
+    }
+    loopback lo {
+        address 10.255.255.1/32
+        address fd00::1/128
+    }
+}
+nat {
+    cgnat {
+        log-allocation
+        pool {
+            external PUBLIC-PREFIXES-01 {
+                per-user-limit {
+                    port 2048
+                }
+                range 192.0.2.0/24 {
+                    seq 10
+                }
+                range 198.51.100.0/24 {
+                    seq 20
+                }
+            }
+            internal INSIDE-PREFIXES {
+                range 100.64.0.0/22
+                range 100.64.4.0/22
+                range 100.64.8.0/22
+                range 100.64.12.0/22
+                range 100.64.16.0/22
+            }
+        }
+        rule 100 {
+            source {
+                pool INSIDE-PREFIXES
+            }
+            translation {
+                pool PUBLIC-PREFIXES-01
+            }
+        }
+    }
+}
+policy {
+    prefix-list CGNAT-PREFIXES {
+        description "Public prefixes used for CGNAT"
+        rule 10 {
+            action permit
+            prefix 192.0.2.0/24
+        }
+        rule 20 {
+            action permit
+            prefix 198.51.100.0/24
+        }
+    }
+    route-map OSPF-OUT {
+        rule 10 {
+            action permit
+            match {
+                ip {
+                    address {
+                        prefix-list CGNAT-PREFIXES
+                    }
+                }
+            }
+        }
+    }
+}
+protocols {
+    bfd {
+        profile BFD-DEFAULT {
+            interval {
+                multiplier 3
+                receive 200
+                transmit 200
+            }
+        }
+    }
+    ospf {
+        area 0 {
+        }
+        interface eth0 {
+            area 0
+            bfd {
+                profile BFD-DEFAULT
+            }
+        }
+        interface eth0.4020 {
+            area 0
+            bfd {
+                profile BFD-DEFAULT
+            }
+        }
+        interface lo {
+            area 0
+            passive {
+            }
+        }
+        log-adjacency-changes {
+        }
+        parameters {
+            router-id 10.255.255.1
+        }
+        redistribute {
+            static {
+                route-map OSPF-OUT
+            }
+        }
+    }
+    ospfv3 {
+        area 0 {
+        }
+        interface eth0 {
+            area 0
+            bfd {
+                profile BFD-DEFAULT
+            }
+        }
+        interface eth0.4020 {
+            area 0
+            bfd {
+                profile BFD-DEFAULT
+            }
+        }
+        interface lo {
+            area 0
+            passive
+        }
+        log-adjacency-changes {
+        }
+        parameters {
+            router-id 10.255.255.1
+        }
+    }
+    static {
+        route 192.0.2.0/24 {
+            blackhole {
+            }
+        }
+        route 198.51.100.0/24 {
+            blackhole {
+            }
+        }
+    }
+}
+service {
+    ntp {
+        allow-client {
+            address ::1/128
+            address 127.0.0.0/8
+        }
+        server a.ntp.br {
+            nts
+            pool
+        }
+        server a.st1.ntp.br {
+            nts
+            pool
+            prefer
+        }
+        server b.ntp.br {
+            nts
+            pool
+        }
+        server b.st1.ntp.br {
+            nts
+            pool
+            prefer
+        }
+        server c.ntp.br {
+            nts
+            pool
+        }
+        server c.st1.ntp.br {
+            nts
+            pool
+            prefer
+        }
+    }
+    ssh {
+        port 2290
+    }
+}
+system {
+    config-management {
+        commit-revisions 100
+    }
+    console {
+        device ttyS0 {
+            kernel
+            speed 115200
+        }
+    }
+    host-name CGNAT-01-DC01
+    login {
+        operator-group default {
+            command-policy {
+                allow "*"
+            }
+        }
+        user daniel {
+            authentication {
+                encrypted-password ****************
+            }
+        }
+        user vyos {
+            authentication {
+                encrypted-password ****************
+                plaintext-password ****************
+            }
+        }
+    }
+    option {
+        reboot-on-upgrade-failure 5
+    }
+    syslog {
+        local {
+            facility all {
+                level info
+            }
+            facility local7 {
+                level debug
+            }
+        }
+        remote 2001:db8:cfa0::7 {
+            facility all {
+                level warning
+            }
+            facility daemon {
+                level info
+            }
+            facility user {
+                level info
+            }
+            protocol tcp
+        }
+    }
+    time-zone America/Recife
+}

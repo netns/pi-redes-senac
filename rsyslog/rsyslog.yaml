@@ -1,0 +1,17 @@
+services:
+    rsyslog:
+        image: rsyslog/rsyslog-collector:latest
+        container_name: rsyslog
+        environment:
+            ENABLE_UDP: "on"
+            ENABLE_TCP: "on"
+            ENABLE_RELP: "off"
+            ENABLE_TLS: "off"
+        ports:
+            - "514:514/udp"
+            - "514:514/tcp"
+            # - "6514:6514/tcp" # TLS syslog
+        volumes:
+            - ./log:/var/log
+            - ./etc-rsyslog:/etc/rsyslog.d
+        
